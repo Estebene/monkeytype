@@ -4,6 +4,7 @@ import "../styles/index.scss";
 import "./firebase";
 
 import * as DB from "./db";
+import "./ui";
 import Config from "./config";
 import * as TestStats from "./test/test-stats";
 import * as Replay from "./test/replay";
@@ -20,7 +21,6 @@ import "./popups/edit-preset-popup";
 import "./popups/simple-popups";
 import "./controllers/input-controller";
 import "./ready";
-import "./ui";
 import "./pages/about";
 import "./popups/pb-tables-popup";
 import "./elements/scroll-to-top";
@@ -28,7 +28,6 @@ import "./popups/mobile-test-config-popup";
 import "./popups/edit-tags-popup";
 import "./popups/google-sign-up-popup";
 import * as Account from "./pages/account";
-import { noGoogleNoMo } from "./controllers/account-controller";
 import "./elements/leaderboards";
 
 type ExtendedGlobal = typeof globalThis & MonkeyTypes.Global;
@@ -54,5 +53,3 @@ extendedGlobal.getTimerStats = TestTimer.getTimerStats;
 extendedGlobal.toggleUnsmoothedRaw = Result.toggleUnsmoothedRaw;
 
 extendedGlobal.enableSpacingDebug = TestInput.enableSpacingDebug;
-
-extendedGlobal.noGoogleNoMo = noGoogleNoMo;

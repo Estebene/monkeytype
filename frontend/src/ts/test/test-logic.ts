@@ -113,6 +113,10 @@ export async function punctuateWord(
 
       word = Misc.capitalizeFirstLetterOfEachWord(word);
 
+      if (currentLanguage == "turkish") {
+        word = word.replace(/I/g, "İ");
+      }
+
       if (currentLanguage == "spanish" || currentLanguage == "catalan") {
         const rand = Math.random();
         if (rand > 0.9) {
@@ -331,8 +335,10 @@ export function restart(
         )
       ) {
         let message = "Use your mouse to confirm.";
-        if (Config.quickTab) {
+        if (Config.quickRestart === "tab") {
           message = "Press shift + tab or use your mouse to confirm.";
+        } else if (Config.quickRestart === "esc") {
+          message = "Press shift + escape or use your mouse to confirm.";
         }
         Notifications.add("Quick restart disabled. " + message, 0, 3);
         return;
@@ -343,7 +349,11 @@ export function restart(
     }
   }
   if (TestActive.get()) {
-    if (Config.repeatQuotes === "typing" && Config.mode === "quote") {
+    if (
+      Config.repeatQuotes === "typing" &&
+      Config.mode === "quote" &&
+      Config.language.replace(/_\d*k$/g, "") === TestWords.randomQuote.language
+    ) {
       withSameWordset = true;
     }
 
@@ -697,7 +707,12 @@ async function getNextWord(
       regenarationCount < 100 &&
       (previousWord == randomWord ||
         previousWord2 == randomWord ||
-        (!Config.punctuation && randomWord == "I"))
+        (Config.mode !== "custom" &&
+          !Config.punctuation &&
+          randomWord == "I") ||
+        (Config.mode !== "custom" &&
+          !Config.punctuation &&
+          /[-=_+[\]{};'\\:"|,./<>?]/i.test(randomWord)))
     ) {
       regenarationCount++;
       randomWord = wordset.randomWord();
@@ -1182,13 +1197,12 @@ export async function retrySavingResult(): Promise<void> {
   }
 
   DB.saveLocalResult(completedEvent);
-  DB.updateLocalStats({
-    time:
-      completedEvent.testDuration +
+  DB.updateLocalStats(
+    TestStats.restartCount + 1,
+    completedEvent.testDuration +
       completedEvent.incompleteTestSeconds -
-      completedEvent.afkDuration,
-    started: TestStats.restartCount + 1,
-  });
+      completedEvent.afkDuration
+  );
 
   AnalyticsController.log("testCompleted");
 
@@ -1585,13 +1599,12 @@ export async function finish(difficultyFailed = false): Promise<void> {
   }
 
   DB.saveLocalResult(completedEvent);
-  DB.updateLocalStats({
-    time:
-      completedEvent.testDuration +
+  DB.updateLocalStats(
+    TestStats.restartCount + 1,
+    completedEvent.testDuration +
       completedEvent.incompleteTestSeconds -
-      completedEvent.afkDuration,
-    started: TestStats.restartCount + 1,
-  });
+      completedEvent.afkDuration
+  );
 
   AnalyticsController.log("testCompleted");
 
@@ -1615,7 +1628,7 @@ export async function finish(difficultyFailed = false): Promise<void> {
 
   if (response.data.dailyLeaderboardRank) {
     Notifications.add(
-      `New ${completedEvent.mode} ${completedEvent.mode2} rank: ` +
+      `New ${completedEvent.language} ${completedEvent.mode} ${completedEvent.mode2} rank: ` +
         Misc.getPositionString(response.data.dailyLeaderboardRank),
       1,
       10,

@@ -13,6 +13,9 @@ interface DailyLeaderboardEntry {
   timestamp: number;
   rank?: number;
   count?: number;
+  discordAvatar?: string;
+  discordId?: string;
+  badgeId?: number;
 }
 
 const dailyLeaderboardNamespace = "monkeytypes:dailyleaderboard";
@@ -170,7 +173,8 @@ export function getDailyLeaderboard(
   language: string,
   mode: string,
   mode2: string,
-  dailyLeaderboardsConfig: MonkeyTypes.Configuration["dailyLeaderboards"]
+  dailyLeaderboardsConfig: MonkeyTypes.Configuration["dailyLeaderboards"],
+  customTimestamp = -1
 ): DailyLeaderboard | null {
   const { validModeRules, enabled } = dailyLeaderboardsConfig;
 
@@ -185,10 +189,15 @@ export function getDailyLeaderboard(
     return null;
   }
 
-  const key = `${language}:${mode}:${mode2}`;
+  const key = `${language}:${mode}:${mode2}:${customTimestamp}`;
 
   if (!DAILY_LEADERBOARDS.has(key)) {
-    const dailyLeaderboard = new DailyLeaderboard(language, mode, mode2);
+    const dailyLeaderboard = new DailyLeaderboard(
+      language,
+      mode,
+      mode2,
+      customTimestamp
+    );
     DAILY_LEADERBOARDS.set(key, dailyLeaderboard);
   }
 

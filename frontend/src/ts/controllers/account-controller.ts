@@ -2,13 +2,11 @@ import Ape from "../ape";
 import * as Notifications from "../elements/notifications";
 import Config, * as UpdateConfig from "../config";
 import * as AccountButton from "../elements/account-button";
-import * as VerificationController from "./verification-controller";
 import * as Misc from "../utils/misc";
 import * as Settings from "../pages/settings";
 import * as AllTimeStats from "../account/all-time-stats";
 import * as DB from "../db";
 import * as TestLogic from "../test/test-logic";
-import * as PageController from "./page-controller";
 import * as PSA from "../elements/psa";
 import * as Focus from "../test/focus";
 import * as Loader from "../elements/loader";
@@ -38,21 +36,21 @@ import {
   linkWithPopup,
   linkWithCredential,
   reauthenticateWithPopup,
-  unlink as unlinkAuth,
   getAdditionalUserInfo,
   sendPasswordResetEmail,
   User as UserType,
 } from "firebase/auth";
 import { Auth } from "../firebase";
-import differenceInDays from "date-fns/differenceInDays";
 import { defaultSnap } from "../constants/default-snapshot";
 import { dispatch as dispatchSignUpEvent } from "../observables/google-sign-up-event";
 import {
   hideFavoriteQuoteLength,
   showFavoriteQuoteLength,
 } from "../test/test-config";
+import { navigate } from "./route-controller";
 
 export const gmailProvider = new GoogleAuthProvider();
+let canCall = true;
 
 export function sendVerificationEmail(): void {
   Loader.show();
@@ -73,7 +71,7 @@ export function sendVerificationEmail(): void {
 export async function getDataAndInit(): Promise<boolean> {
   try {
     console.log("getting account data");
-    if (ActivePage.get() === "loading") {
+    if (window.location.pathname !== "/account") {
       LoadingPage.updateBar(90);
     } else {
       LoadingPage.updateBar(45);
@@ -130,6 +128,8 @@ export async function getDataAndInit(): Promise<boolean> {
     Notifications.addBanner(
       "Your name was reset. <a class='openNameChange'>Click here</a> to change it and learn more about why.",
       -1,
+      undefined,
+      true,
       undefined,
       true
     );
@@ -209,14 +209,16 @@ export async function getDataAndInit(): Promise<boolean> {
   TagController.loadActiveFromLocalStorage();
   ResultTagsPopup.updateButtons();
   Settings.showAccountSection();
-  if (ActivePage.get() === "account") {
-    Account.update();
+  if (window.location.pathname === "/account") {
+    await Account.downloadResults();
   } else {
     Focus.set(false);
   }
-  await PageController.change(undefined, true);
-  PageTransition.set(false);
-  console.log("account loading finished");
+  if (window.location.pathname === "/login") {
+    navigate("/account");
+  } else {
+    navigate();
+  }
   return true;
 }
 
@@ -229,11 +231,12 @@ export async function loadUser(user: UserType): Promise<void> {
     );
   }
   PageTransition.set(false);
-  AccountButton.update();
   AccountButton.loading(true);
   if ((await getDataAndInit()) === false) {
     signOut();
   }
+  const { discordId, discordAvatar } = DB.getSnapshot();
+  AccountButton.update(discordId, discordAvatar);
   // var displayName = user.displayName;
   // var email = user.email;
   // var emailVerified = user.emailVerified;
@@ -245,23 +248,27 @@ export async function loadUser(user: UserType): Promise<void> {
 
   // showFavouriteThemesAtTheTop();
 
-  let text = "Account created on " + user.metadata.creationTime;
+  if (TestLogic.notSignedInLastResult !== null) {
+    TestLogic.setNotSignedInUid(user.uid);
 
-  const creationDate = new Date(user.metadata.creationTime as string);
-  const diffDays = differenceInDays(new Date(), creationDate);
+    const response = await Ape.results.save(TestLogic.notSignedInLastResult);
 
-  text += ` (${diffDays} day${diffDays != 1 ? "s" : ""} ago)`;
+    if (response.status !== 200) {
+      return Notifications.add(
+        "Failed to save last result: " + response.message,
+        -1
+      );
+    }
 
-  $(".pageAccount .group.createdDate").text(text);
-
-  if (VerificationController.data !== null) {
-    VerificationController.verify(user.uid);
+    TestLogic.clearNotSignedInResult();
+    Notifications.add("Last test result saved", 1);
   }
 }
 
 const authListener = Auth.onAuthStateChanged(async function (user) {
   // await UpdateConfig.loadPromise;
   const search = window.location.search;
+  const hash = window.location.hash;
   console.log(`auth state changed, user ${user ? true : false}`);
   if (user) {
     await loadUser(user);
@@ -272,7 +279,7 @@ const authListener = Auth.onAuthStateChanged(async function (user) {
     PageTransition.set(false);
   }
   if (!user) {
-    PageController.change();
+    navigate();
     setTimeout(() => {
       Focus.set(false);
     }, 125 / 2);
@@ -280,6 +287,8 @@ const authListener = Auth.onAuthStateChanged(async function (user) {
 
   URLHandler.loadCustomThemeFromUrl(search);
   URLHandler.loadTestSettingsFromUrl(search);
+  URLHandler.linkDiscord(hash);
+
   if (/challenge_.+/g.test(window.location.pathname)) {
     Notifications.add(
       "Challenge links temporarily disabled. Please use the command line to load the challenge manually",
@@ -314,23 +323,6 @@ export function signIn(): void {
     return signInWithEmailAndPassword(Auth, email, password)
       .then(async (e) => {
         await loadUser(e.user);
-        if (TestLogic.notSignedInLastResult !== null) {
-          TestLogic.setNotSignedInUid(e.user.uid);
-
-          const response = await Ape.results.save(
-            TestLogic.notSignedInLastResult
-          );
-
-          if (response.status !== 200) {
-            return Notifications.add(
-              "Failed to save last result: " + response.message,
-              -1
-            );
-          }
-
-          TestLogic.clearNotSignedInResult();
-          Notifications.add("Last test result saved", 1);
-        }
       })
       .catch(function (error) {
         let message = error.message;
@@ -349,6 +341,31 @@ export function signIn(): void {
         LoginPage.updateSignupButton();
       });
   });
+}
+
+export async function forgotPassword(email: any): Promise<void> {
+  if (!canCall) {
+    return Notifications.add(
+      "Please wait before requesting another password reset link",
+      0,
+      5000
+    );
+  }
+  if (!email) return Notifications.add("Please enter an email!", -1);
+
+  try {
+    await sendPasswordResetEmail(Auth, email);
+    Notifications.add("Email sent", 1, 2);
+  } catch (error) {
+    Notifications.add(
+      Misc.createErrorMessage(error, "Failed to send email"),
+      -1
+    );
+  }
+  canCall = false;
+  setTimeout(function () {
+    canCall = true;
+  }, 10000);
 }
 
 export async function signInWithGoogle(): Promise<void> {
@@ -403,62 +420,10 @@ export async function addGoogleAuth(): Promise<void> {
     .catch(function (error) {
       Loader.hide();
       Notifications.add(
-        "Failed to add Google authenication: " + error.message,
+        "Failed to add Google authentication: " + error.message,
         -1
       );
     });
-}
-
-export function noGoogleNoMo(): void {
-  const user = Auth.currentUser;
-  if (user === null) return;
-  if (
-    user.providerData.find((provider) => provider.providerId === "password")
-  ) {
-    unlinkAuth(user, "google.com")
-      .then(() => {
-        console.log("unlinked");
-        Settings.updateAuthSections();
-      })
-      .catch((error) => {
-        console.log(error);
-      });
-  }
-}
-
-export async function removeGoogleAuth(): Promise<void> {
-  const user = Auth.currentUser;
-  if (user === null) return;
-  if (
-    user.providerData.find((provider) => provider.providerId === "password")
-  ) {
-    Loader.show();
-    try {
-      await reauthenticateWithPopup(user, gmailProvider);
-    } catch (e) {
-      Loader.hide();
-      const message = Misc.createErrorMessage(e, "Failed to reauthenticate");
-      return Notifications.add(message, -1);
-    }
-    unlinkAuth(user, "google.com")
-      .then(() => {
-        Notifications.add("Google authentication removed", 1);
-        Loader.hide();
-        Settings.updateAuthSections();
-      })
-      .catch((error) => {
-        Loader.hide();
-        Notifications.add(
-          "Failed to remove Google authentication: " + error.message,
-          -1
-        );
-      });
-  } else {
-    Notifications.add(
-      "Password authentication needs to be enabled to remove Google authentication",
-      -1
-    );
-  }
 }
 
 export async function addPasswordAuth(
@@ -484,13 +449,13 @@ export async function addPasswordAuth(
   linkWithCredential(user, credential)
     .then(function () {
       Loader.hide();
-      Notifications.add("Password authenication added", 1);
+      Notifications.add("Password authentication added", 1);
       Settings.updateAuthSections();
     })
     .catch(function (error) {
       Loader.hide();
       Notifications.add(
-        "Failed to add password authenication: " + error.message,
+        "Failed to add password authentication: " + error.message,
         -1
       );
     });
@@ -504,7 +469,7 @@ export function signOut(): void {
       AllTimeStats.clear();
       Settings.hideAccountSection();
       AccountButton.update();
-      PageController.change("login");
+      navigate("/login");
       DB.setSnapshot(defaultSnap);
       $(".pageLogin .button").removeClass("disabled");
       $(".pageLogin input").prop("disabled", false);
@@ -624,13 +589,12 @@ async function signUp(): Promise<void> {
       if (response.status === 200) {
         const result = TestLogic.notSignedInLastResult;
         DB.saveLocalResult(result);
-        DB.updateLocalStats({
-          time:
-            result.testDuration +
+        DB.updateLocalStats(
+          1,
+          result.testDuration +
             result.incompleteTestSeconds -
-            result.afkDuration,
-          started: 1,
-        });
+            result.afkDuration
+        );
       }
     }
     Notifications.add("Account created", 1, 3);
@@ -655,17 +619,7 @@ $(".pageLogin #forgotPasswordButton").on("click", () => {
   const emailField =
     ($(".pageLogin .login input")[0] as HTMLInputElement).value || "";
   const email = prompt("Email address", emailField);
-  if (email) {
-    sendPasswordResetEmail(Auth, email)
-      .then(function () {
-        // Email sent.
-        Notifications.add("Email sent", 1, 2);
-      })
-      .catch(function (error) {
-        // An error happened.
-        Notifications.add(error.message, -1);
-      });
-  }
+  forgotPassword(email);
 });
 
 $(".pageLogin .login input").keyup((e) => {
@@ -708,10 +662,6 @@ $(".pageLogin .register .button").on("click", () => {
 
 $(".pageSettings #addGoogleAuth").on("click", async () => {
   addGoogleAuth();
-});
-
-$(".pageSettings #removeGoogleAuth").on("click", () => {
-  removeGoogleAuth();
 });
 
 $(document).on("click", ".pageAccount .sendVerificationEmail", () => {

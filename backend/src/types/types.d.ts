@@ -11,16 +11,35 @@ declare namespace MonkeyTypes {
 
   interface Configuration {
     maintenance: boolean;
-    quoteReport: {
-      enabled: boolean;
-      maxReports: number;
-      contentReportLimit: number;
+    quotes: {
+      reporting: {
+        enabled: boolean;
+        maxReports: number;
+        contentReportLimit: number;
+      };
+      submissionsEnabled: boolean;
+      maxFavorites: number;
     };
-    quoteSubmit: {
-      enabled: boolean;
+    results: {
+      savingEnabled: boolean;
+      objectHashCheckEnabled: boolean;
+      filterPresets: {
+        enabled: boolean;
+        maxPresetsPerUser: number;
+      };
     };
-    resultObjectHashCheck: {
-      enabled: boolean;
+    users: {
+      autoBan: {
+        enabled: boolean;
+        maxCount: number;
+        maxHours: number;
+      };
+      profiles: {
+        enabled: boolean;
+      };
+      discordIntegration: {
+        enabled: boolean;
+      };
     };
     apeKeys: {
       endpointsEnabled: boolean;
@@ -29,17 +48,7 @@ declare namespace MonkeyTypes {
       apeKeyBytes: number;
       apeKeySaltRounds: number;
     };
-    enableSavingResults: {
-      enabled: boolean;
-    };
-    favoriteQuotes: {
-      maxFavorites: number;
-    };
-    autoBan: {
-      enabled: boolean;
-      maxCount: number;
-      maxHours: number;
-    };
+
     dailyLeaderboards: {
       enabled: boolean;
       leaderboardExpirationTimeInDays: number;
@@ -67,6 +76,16 @@ declare namespace MonkeyTypes {
 
   // Data Model
 
+  interface UserProfileDetails {
+    bio?: string;
+    keyboard?: string;
+    socialProfiles: {
+      twitter?: string;
+      github?: string;
+      website?: string;
+    };
+  }
+
   interface User {
     autoBanTimestamps?: number[];
     addedAt: number;
@@ -92,6 +111,81 @@ declare namespace MonkeyTypes {
     canManageApeKeys?: boolean;
     favoriteQuotes?: Record<string, string[]>;
     needsToChangeName?: boolean;
+    discordAvatar?: string;
+    resultFilterPresets?: ResultFilters[];
+    profileDetails?: UserProfileDetails;
+    inventory?: UserInventory;
+  }
+
+  interface UserInventory {
+    badges: Badge[];
+  }
+
+  interface Badge {
+    id: number;
+    selected?: boolean;
+  }
+
+  interface ResultFilters {
+    _id: ObjectId;
+    name: string;
+    difficulty: {
+      normal: boolean;
+      expert: boolean;
+      master: boolean;
+    };
+    mode: {
+      words: boolean;
+      time: boolean;
+      quote: boolean;
+      zen: boolean;
+      custom: boolean;
+    };
+    words: {
+      10: boolean;
+      25: boolean;
+      50: boolean;
+      100: boolean;
+      custom: boolean;
+    };
+    time: {
+      15: boolean;
+      30: boolean;
+      60: boolean;
+      120: boolean;
+      custom: boolean;
+    };
+    quoteLength: {
+      short: boolean;
+      medium: boolean;
+      long: boolean;
+      thicc: boolean;
+    };
+    punctuation: {
+      on: boolean;
+      off: boolean;
+    };
+    numbers: {
+      on: boolean;
+      off: boolean;
+    };
+    date: {
+      last_day: boolean;
+      last_week: boolean;
+      last_month: boolean;
+      last_3months: boolean;
+      all: boolean;
+    };
+    tags: {
+      [tagId: string]: boolean;
+    };
+    language: {
+      [language: string]: boolean;
+    };
+    funbox: {
+      none?: boolean;
+      [funbox: string]: boolean;
+    };
   }
 
   type UserQuoteRatings = Record<string, Record<string, number>>;
@@ -124,6 +218,8 @@ declare namespace MonkeyTypes {
     uid: string;
     name: string;
     rank: number;
+    badges?: Badge[];
+    badgeId?: number;
   }
 
   interface CustomTheme {

@@ -92,7 +92,7 @@ declare namespace MonkeyTypes {
 
   type SoundVolume = "0.1" | "0.5" | "1.0";
 
-  type PaceCaret = "off" | "average" | "pb" | "custom";
+  type PaceCaret = "off" | "average" | "pb" | "last" | "custom";
 
   type PageWidth = "100" | "125" | "150" | "200" | "max";
 
@@ -232,10 +232,10 @@ declare namespace MonkeyTypes {
     _id: string;
   }
 
-  interface Stats {
-    time: number;
-    started: number;
-    completed?: number;
+  interface TypingStats {
+    timeTyping: number;
+    startedTests: number;
+    completedTests: number;
   }
 
   interface ChartData {
@@ -309,7 +309,7 @@ declare namespace MonkeyTypes {
     showLiveWpm: boolean;
     showTimerProgress: boolean;
     smoothCaret: boolean;
-    quickTab: boolean;
+    quickRestart: "off" | "esc" | "tab";
     punctuation: boolean;
     numbers: boolean;
     words: WordsModes;
@@ -351,7 +351,6 @@ declare namespace MonkeyTypes {
     playSoundOnClick: PlaySoundOnClick;
     soundVolume: SoundVolume;
     startGraphsAtZero: boolean;
-    swapEscAndTab: boolean;
     showOutOfFocusWarning: boolean;
     paceCaret: PaceCaret;
     paceCaretCustomSpeed: number;
@@ -421,7 +420,7 @@ declare namespace MonkeyTypes {
   }
 
   interface LeaderboardEntry {
-    _id: string;
+    uid: string;
     difficulty: string;
     timestamp: number;
     language: string;
@@ -433,6 +432,8 @@ declare namespace MonkeyTypes {
     uid?: string;
     name: string;
     discordId?: string;
+    discordAvatar?: string;
+    badgeId?: number;
     rank: number;
     count?: number;
     hidden?: boolean;
@@ -457,12 +458,36 @@ declare namespace MonkeyTypes {
     tags: Tag[];
     favouriteThemes?: string[];
     lbMemory?: LeaderboardMemory;
-    globalStats?: Stats;
+    typingStats?: TypingStats;
     quoteMod?: boolean;
     discordId?: string;
     config?: Config;
     favoriteQuotes: FavoriteQuotes;
     needsToChangeName?: boolean;
+    discordAvatar?: string;
+    details?: UserDetails;
+    inventory?: UserInventory;
+    addedAt: number;
+    filterPresets: ResultFilters[];
+  }
+
+  interface UserDetails {
+    bio?: string;
+    keyboard?: string;
+    socialProfiles: {
+      twitter?: string;
+      github?: string;
+      website?: string;
+    };
+  }
+
+  interface UserInventory {
+    badges: Badge[];
+  }
+
+  interface Badge {
+    id: number;
+    selected?: boolean;
   }
 
   type FavoriteQuotes = Record<string, string[]>;
@@ -473,6 +498,8 @@ declare namespace MonkeyTypes {
   };
 
   interface ResultFilters {
+    _id: string;
+    name: string;
     difficulty: {
       normal: boolean;
       expert: boolean;
@@ -660,10 +687,6 @@ declare namespace MonkeyTypes {
     colorfulErrorExtra: string;
   }
 
-  type Page = "loading" | "test" | "about" | "settings" | "account" | "login";
-
-  //  type ActivePage = `page${Page}` | undefined;
-
   interface Layout {
     keymapShowTopRow: boolean;
     type: "iso" | "ansi" | "ortho" | "matrix";
@@ -698,5 +721,15 @@ declare namespace MonkeyTypes {
         [parameter: string]: string | number | boolean;
       };
     };
+  }
+
+  interface UserBadge {
+    id: number;
+    name: string;
+    description: string;
+    icon?: string;
+    background?: string;
+    color?: string;
+    customStyle?: string;
   }
 }

@@ -1,12 +1,34 @@
 const BASE_PATH = "/leaderboards";
 
-export default function getLeaderboardsEndpoints(
-  apeClient: Ape.Client
-): Ape.Endpoints["leaderboards"] {
-  async function get(
-    query: Ape.EndpointTypes.LeadeboardQueryWithPagination
-  ): Ape.EndpointData {
-    const { language, mode, mode2, isDaily, skip = 0, limit = 50 } = query;
+interface LeaderboardQuery {
+  language: string;
+  mode: MonkeyTypes.Mode;
+  mode2: string | number;
+  isDaily?: boolean;
+  daysBefore?: number;
+}
+
+interface LeadeboardQueryWithPagination extends LeaderboardQuery {
+  skip?: number;
+  limit?: number;
+}
+
+export default class Leaderboards {
+  constructor(private httpClient: Ape.HttpClient) {
+    this.httpClient = httpClient;
+  }
+
+  async get(query: LeadeboardQueryWithPagination): Ape.EndpointData {
+    const {
+      language,
+      mode,
+      mode2,
+      isDaily,
+      skip = 0,
+      limit = 50,
+      daysBefore,
+    } = query;
+    const includeDaysBefore = isDaily && daysBefore;
 
     const searchQuery = {
       language,
@@ -14,28 +36,27 @@ export default function getLeaderboardsEndpoints(
       mode2,
       skip: Math.max(skip, 0),
       limit: Math.max(Math.min(limit, 50), 0),
+      ...(includeDaysBefore && { daysBefore }),
     };
 
     const endpointPath = `${BASE_PATH}/${isDaily ? "daily" : ""}`;
 
-    return await apeClient.get(endpointPath, { searchQuery });
+    return await this.httpClient.get(endpointPath, { searchQuery });
   }
 
-  async function getRank(
-    query: Ape.EndpointTypes.LeaderboardQuery
-  ): Ape.EndpointData {
-    const { language, mode, mode2, isDaily } = query;
+  async getRank(query: LeaderboardQuery): Ape.EndpointData {
+    const { language, mode, mode2, isDaily, daysBefore } = query;
+    const includeDaysBefore = isDaily && daysBefore;
 
     const searchQuery = {
       language,
       mode,
       mode2,
+      ...(includeDaysBefore && { daysBefore }),
     };
 
     const endpointPath = `${BASE_PATH}${isDaily ? "/daily" : ""}/rank`;
 
-    return await apeClient.get(endpointPath, { searchQuery });
+    return await this.httpClient.get(endpointPath, { searchQuery });
   }
-
-  return { get, getRank };
 }
